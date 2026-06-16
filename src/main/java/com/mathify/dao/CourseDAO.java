@@ -1,5 +1,7 @@
 package com.mathify.dao;
 
+import jakarta.enterprise.context.ApplicationScoped;
+
 import com.mathify.model.Course;
 import com.mathify.model.CourseCardView;
 import com.mathify.util.DBConnection;
@@ -18,6 +20,7 @@ import java.util.List;
  *   - {@link Course}: the domain aggregate (chapters + prerequisites), composed via
  *     {@link ChapterDAO}. The domain {@code category} maps to the {@code track} column.
  */
+@ApplicationScoped
 public class CourseDAO {
 
     private final ChapterDAO chapterDAO = new ChapterDAO();
@@ -72,6 +75,21 @@ public class CourseDAO {
         for (var chapter : course.getChapters()) {
             chapterDAO.insert(course.getCourseId(), chapter, order++);
         }
+    }
+
+    public void update(String courseId, String title, String description, String category) throws SQLException {
+        String sql = """
+                UPDATE courses
+                   SET title = ?,
+                       description = ?,
+                       track = COALESCE(?, track)
+                 WHERE course_id = ?
+                """;
+        QueryHelper.executeUpdate(sql, title, description, category, courseId);
+    }
+
+    public void delete(String courseId) throws SQLException {
+        QueryHelper.executeUpdate("DELETE FROM courses WHERE course_id = ?", courseId);
     }
 
     public void addPrerequisite(String courseId, String prerequisiteId) throws SQLException {
@@ -144,3 +162,4 @@ public class CourseDAO {
         return c;
     }
 }
+

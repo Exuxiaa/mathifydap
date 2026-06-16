@@ -1,5 +1,7 @@
 package com.mathify.dao;
 
+import jakarta.enterprise.context.ApplicationScoped;
+
 import com.mathify.model.CourseEnrollment;
 import com.mathify.util.QueryHelper;
 
@@ -9,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /** Per-user course enrollments ({@code course_enrollments}). */
+@ApplicationScoped
 public class CourseEnrollmentDAO {
 
     /** Enrolls a user in a course. No-op if already enrolled. */
@@ -41,6 +44,29 @@ public class CourseEnrollmentDAO {
         return QueryHelper.queryList(sql, CourseEnrollmentDAO::map, uid);
     }
 
+    /**
+     * Returns the course_id the user most recently interacted with,
+     * ranked by latest chapter activity falling back to enroll date.
+     * Returns {@code null} if the user has no enrollments.
+     */
+    public String findLastAccessedCourseId(String uid) throws SQLException {
+        String sql = """
+                SELECT ce.course_id
+                FROM course_enrollments ce
+                LEFT JOIN (
+                    SELECT ch.course_id, MAX(cp.completed_at) AS last_activity
+                    FROM chapter_progress cp
+                    JOIN chapters ch ON ch.chapter_id = cp.chapter_id
+                    WHERE cp.uid = ?
+                    GROUP BY ch.course_id
+                ) recent ON recent.course_id = ce.course_id
+                WHERE ce.uid = ?
+                ORDER BY COALESCE(recent.last_activity, ce.enrolled_at) DESC
+                LIMIT 1
+                """;
+        return QueryHelper.queryOne(sql, rs -> rs.getString("course_id"), uid, uid);
+    }
+
     static CourseEnrollment map(java.sql.ResultSet rs) throws SQLException {
         Timestamp completed = rs.getTimestamp("completed_at");
         LocalDateTime completedAt = (completed != null) ? completed.toLocalDateTime() : null;
@@ -50,3 +76,4 @@ public class CourseEnrollmentDAO {
                 completedAt);
     }
 }
+
